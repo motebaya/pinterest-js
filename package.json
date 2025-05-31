@@ -1,0 +1,26 @@
+{
+  "name": "pinterest-js",
+  "version": "1.0.0",
+  "description": "easy peasy download bulk pinterest media from based username or pinId",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "motebaya",
+  "homepage": "https://github.com/motebaya/pinterest-js",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "argparse": "^2.0.1",
+    "axios": "^1.9.0",
+    "axios-logger": "^2.8.1",
+    "chalk": "^5.4.1",
+    "cheerio": "^1.0.0",
+    "cli-progress": "^3.12.0",
+    "dotenv": "^16.5.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "sharp": "^0.34.2",
+    "winston": "^3.17.0"
+  }
+}
