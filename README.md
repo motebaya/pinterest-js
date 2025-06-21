@@ -9,11 +9,7 @@ Pinterest media downloader tool
 [![axios](https://img.shields.io/badge/axios-1.9.0-blue?logo=axios&logoColor=white)](https://axios-http.com)
 [![axios-logger](https://img.shields.io/badge/axios--logger-2.8.1-blue?logo=axios&logoColor=white)](https://www.npmjs.com/package/axios-logger)
 [![chalk](https://img.shields.io/badge/chalk-5.4.1-yellow?logo=javascript&logoColor=white)](https://www.npmjs.com/package/chalk)
-[![cheerio](https://img.shields.io/badge/cheerio-1.0.0-green?logo=cheerio&logoColor=white)](https://cheerio.js.org)
 [![cli-progress](https://img.shields.io/badge/cli--progress-3.12.0-blue?logo=javascript&logoColor=white)](https://www.npmjs.com/package/cli-progress)
-[![dotenv](https://img.shields.io/badge/dotenv-16.5.0-green?logo=dotenv&logoColor=white)](https://www.npmjs.com/package/dotenv)
-[![node-telegram-bot-api](https://img.shields.io/badge/node--telegram--bot--api-0.66.0-2CA5E0?logo=telegram&logoColor=white)](https://www.npmjs.com/package/node-telegram-bot-api)
-[![sharp](https://img.shields.io/badge/sharp-0.34.2-green?logo=sharp&logoColor=white)](https://sharp.pixelplumbing.com)
 [![winston](https://img.shields.io/badge/winston-3.17.0-blue?logo=winston&logoColor=white)](https://www.npmjs.com/package/winston)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?logo=github)](https://opensource.org/licenses/MIT)
 
