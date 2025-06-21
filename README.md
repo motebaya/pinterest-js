@@ -98,8 +98,6 @@ pinterest-downloader-output/
 ### Dependencies:
 
 - axios: HTTP client for making requests
-- cheerio: HTML parsing and manipulation
-- sharp: Image processing
 - cli-progress: Progress bar visualization
 - winston: Logging
 - argparse: Command-line argument parsing
