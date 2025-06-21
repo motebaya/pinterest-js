@@ -11,7 +11,8 @@ import fs from "fs";
 import chalk from "chalk";
 import { fileURLToPath } from "url";
 import Utils from "./lib/Utils.js";
-import Downloader from "./lib/Downloader.js";
+import Downloader from "./lib/downloader.js";
+import boxen from "boxen";
 
 class Main extends Pinterest {
   constructor(verbose = false) {
@@ -33,35 +34,33 @@ class Main extends Pinterest {
    * @returns {Promise<void>}
    */
   async saveMetaData(opts) {
-    return new Promise(async (resolve) => {
-      let { type, metadata, overwrite } = opts;
-      let defaultPath = path.join(
-        fileURLToPath(import.meta.url),
-        `../pinterest-downloader-output/@${metadata.author.username}`
-      );
-      if (type === "videos" || type === "images") {
-        defaultPath = path.join(defaultPath, `${type}/metadata`);
-      }
+    let { type, metadata, overwrite } = opts;
+    let defaultPath = path.join(
+      fileURLToPath(import.meta.url),
+      `../pinterest-downloader-output/@${metadata.author.username}`
+    );
+    if (type === "videos" || type === "images") {
+      defaultPath = path.join(defaultPath, `${type}/metadata`);
+    }
 
-      if (!fs.existsSync(defaultPath)) {
-        fs.mkdirSync(defaultPath, { recursive: true });
-      }
+    if (!fs.existsSync(defaultPath)) {
+      fs.mkdirSync(defaultPath, { recursive: true });
+    }
 
-      const fname = path.join(
-        defaultPath,
-        `${
-          type === "user" ? metadata.author.userId : metadata.result.entityId
-        }.json`
-      );
-      if (fs.existsSync(fname) && !overwrite) {
-        this.log.warn(`metadata file already exists in::${chalk.white(fname)}`);
-        return resolve();
-      }
+    const fname = path.join(
+      defaultPath,
+      `${
+        type === "user" ? metadata.author.userId : metadata.result.entityId
+      }.json`
+    );
+    if (fs.existsSync(fname) && !overwrite) {
+      this.log.warn(`metadata file already exists in::${chalk.white(fname)}`);
+      return;
+    }
 
-      fs.writeFileSync(fname, JSON.stringify(metadata, null, 2));
-      this.log.info(`metadata saved in::${chalk.white(fname)}`);
-      return resolve();
-    });
+    fs.writeFileSync(fname, JSON.stringify(metadata, null, 2));
+    this.log.info(`metadata saved in::${chalk.white(fname)}`);
+    return;
   }
 
   /**
@@ -73,11 +72,7 @@ class Main extends Pinterest {
    */
   getFromCache(opts) {
     let { cache } = opts;
-    cache = /^\d+$/.test(cache.replace(/\D+/g, ""))
-      ? cache.replace(/\D+/g, "")
-      : !cache.startsWith("@")
-      ? `@${cache}`
-      : cache;
+    cache = !cache.startsWith("@") ? `@${cache}` : cache;
     if (cache.startsWith("@")) {
       cache = path.join(this.defaultPath, cache);
       if (fs.existsSync(cache)) {
@@ -160,7 +155,7 @@ class Main extends Pinterest {
     let { username, pinId, metadata, overwrite, type, cache } = opts;
     let result;
     if (cache) {
-      if (!username && !/^\d+$/.test(cache.replace(/\D+/g, ""))) {
+      if (!username) {
         this.log.info(`using cache as username::|>${chalk.white(cache)}`);
         username = cache;
       } else {
@@ -179,7 +174,7 @@ class Main extends Pinterest {
       }
 
       if (result.status) {
-        if (metadata) {
+        if (metadata && !cache) {
           this.saveMetaData({
             metadata: result,
             type: "user",
@@ -206,25 +201,29 @@ class Main extends Pinterest {
           return m;
         }, []);
 
-        console.log("-".repeat(35));
-        Object.keys(result.author).forEach((key) => {
-          console.log(
-            `* ${chalk.blue(key)}: ${chalk.white(result.author[key])}`
-          );
-        });
+        let content = `
+ * Username: ${chalk.blue(result.author.username)}
+ * Name: ${chalk.blue(result.author.name)}
+ * UserId: ${chalk.blue(result.author.userId)}
+ * Videos: ${chalk.yellow(media.filter((m) => m.i).length)}
+ * Images: ${chalk.yellow(media.filter((m) => !m.i).length)}
+        `;
         console.log(
-          `* ${chalk.blue("videos:")} ${chalk.yellow(
-            media.filter((m) => m.i).length
-          )}`
-        );
-        console.log(
-          `* ${chalk.blue("images:")} ${chalk.yellow(
-            media.filter((m) => !m.i).length
-          )}`
+          boxen(content, {
+            title: "pinterest",
+            titleAlignment: "center",
+            borderStyle: "single",
+            padding: 0,
+            borderColor: "white",
+          })
         );
 
-        console.log("-".repeat(35));
-        await Utils.waitConfirm();
+        let godl = await Utils.waitConfirm();
+        if (!godl) {
+          this.log.warn("Canceled");
+          return;
+        }
+
         this.log.info(`choosed media type::${chalk.white(type)}`);
 
         const start = new Date();
@@ -268,6 +267,7 @@ class Main extends Pinterest {
     } else {
       if (pinId) {
         pinId = Utils.isPinUrl(pinId);
+        this.log.info(`Extracting from pinId::${chalk.white(pinId.id)}`);
         if (!pinId) {
           this.log.error("Invalid pin id or url");
           return;
@@ -291,20 +291,22 @@ class Main extends Pinterest {
               overwrite: overwrite || false,
             });
           }
-          console.log("-".repeat(35));
-          console.log(
-            ` * ${chalk.blue("Author: ")}@${chalk.white(
-              result.author.username
-            )} / ${chalk.white(result.author.name)}`
-          );
-          console.log(
-            ` * ${chalk.blue("Title: ")} ${chalk.white(result.result.title)}`
-          );
-          console.log(
-            ` * ${chalk.blue("PinId: ")} ${chalk.white(result.result.entityId)}`
-          );
-          console.log("-".repeat(35));
 
+          let content = `
+ + Author: ${chalk.blue("@" + result.author.username)} / ${result.author.name}
+ + Title: ${result.result.title}
+ + PinId: ${chalk.blue(result.result.entityId)}
+ + Type: ${type}
+          `;
+          console.log(
+            boxen(content, {
+              title: "pinterest",
+              titleAlignment: "center",
+              borderStyle: "single",
+              padding: 0,
+              borderColor: "white",
+            })
+          );
           // different location
           const target =
             type === "video"
