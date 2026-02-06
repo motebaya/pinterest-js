@@ -19,7 +19,7 @@ class Main extends Pinterest {
     super(verbose);
     this.defaultPath = path.join(
       fileURLToPath(import.meta.url),
-      `../pinterest-downloader-output`
+      `../pinterest-downloader-output`,
     );
   }
 
@@ -37,7 +37,7 @@ class Main extends Pinterest {
     let { type, metadata, overwrite } = opts;
     let defaultPath = path.join(
       fileURLToPath(import.meta.url),
-      `../pinterest-downloader-output/@${metadata.author.username}`
+      `../pinterest-downloader-output/@${metadata.author.username}`,
     );
     if (type === "videos" || type === "images") {
       defaultPath = path.join(defaultPath, `${type}/metadata`);
@@ -51,7 +51,7 @@ class Main extends Pinterest {
       defaultPath,
       `${
         type === "user" ? metadata.author.userId : metadata.result.entityId
-      }.json`
+      }.json`,
     );
     if (fs.existsSync(fname) && !overwrite) {
       this.log.warn(`metadata file already exists in::${chalk.white(fname)}`);
@@ -81,7 +81,7 @@ class Main extends Pinterest {
           .filter((f) => f.endsWith(".json"));
         if (cache_file.length === 0) {
           this.log.error(
-            `no metadata cache file found in::${chalk.white(cache)}`
+            `no metadata cache file found in::${chalk.white(cache)}`,
           );
           return;
         }
@@ -95,8 +95,8 @@ class Main extends Pinterest {
     } else {
       this.log.info(
         `scanning::|>${chalk.white(
-          this.defaultPath
-        )} for matching ID::${chalk.white(cache)}`
+          this.defaultPath,
+        )} for matching ID::${chalk.white(cache)}`,
       );
       const files = fs.readdirSync(this.defaultPath);
       for (const file of files) {
@@ -118,7 +118,7 @@ class Main extends Pinterest {
           ];
           if (fpath.length >= 1) {
             this.log.info(
-              `scanning metadata of ${chalk.white(fpath.length)} files`
+              `scanning metadata of ${chalk.white(fpath.length)} files`,
             );
             for (const f of fpath) {
               if (f.endsWith(".json") && f.includes(cache)) {
@@ -129,8 +129,8 @@ class Main extends Pinterest {
           } else {
             this.log.warn(
               `no metadata found in::|>${chalk.white(
-                imageMetadata
-              )} and ${chalk.white(videoMetadata)}`
+                imageMetadata,
+              )} and ${chalk.white(videoMetadata)}`,
             );
           }
         }
@@ -215,7 +215,7 @@ class Main extends Pinterest {
             borderStyle: "single",
             padding: 0,
             borderColor: "white",
-          })
+          }),
         );
 
         let godl = await Utils.waitConfirm();
@@ -232,15 +232,15 @@ class Main extends Pinterest {
             item.i && type === "video"
               ? true
               : !item.i && type === "image"
-              ? true
-              : false;
+                ? true
+                : false;
           if (godl) {
             this.log.info(
               ` ${chalk.yellow(item.i ? "video" : "image")} (${chalk.yellow(
-                index + 1
+                index + 1,
               )}/${chalk.white(media.length)}) ${chalk.white(
-                item.t
-              )} - (${chalk.white(item.p)})`
+                item.t,
+              )} - (${chalk.white(item.p)})`,
             );
             await Downloader._download({
               url: item.u,
@@ -253,13 +253,13 @@ class Main extends Pinterest {
           } else {
             this.log.warn(
               `skipping::${chalk.white(item.p)}, not match type::${chalk.white(
-                type
-              )}`
+                type,
+              )}`,
             );
           }
         }
         this.log.info(
-          `completed in ${chalk.yellow((new Date() - start) / 1000)} seconds`
+          `completed in ${chalk.yellow((new Date() - start) / 1000)} seconds`,
         );
       } else {
         this.log.error(result.message);
@@ -276,12 +276,14 @@ class Main extends Pinterest {
         result = cache
           ? this.getFromCache({ cache })
           : type === "image"
-          ? await this.getImages({
-              pinId: pinId.url,
-            })
-          : await this.getVideos({
-              pinId: pinId.url,
-            });
+            ? await this.getImages({
+                pinId: pinId.url,
+              })
+            : await this.getVideos({
+                pinId: pinId.url,
+              });
+
+        console.log(result);
 
         if (result.status) {
           if (metadata) {
@@ -305,16 +307,15 @@ class Main extends Pinterest {
               borderStyle: "single",
               padding: 0,
               borderColor: "white",
-            })
+            }),
           );
           // different location
           const target =
             type === "video"
-              ? result.result.videoList?.v720P?.url
+              ? result.result?.url
               : type === "image"
-              ? result?.result?.url ??
-                result?.result?.videoList?.v720P?.thumbnail
-              : undefined;
+                ? (result?.result?.url ?? result?.result?.thumbnail)
+                : undefined;
           if (target !== undefined) {
             await Downloader._download({
               url: target,
