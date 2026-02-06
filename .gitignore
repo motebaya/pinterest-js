@@ -1,3 +1,6 @@
 trash/*
 pinterest-downloader-output/*
 node_modules/*
+*.html
+*.json
+*.txt
