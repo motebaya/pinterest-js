@@ -17,6 +17,8 @@ Pinterest media downloader tool
 
 NodeJS CLI tool for downloading Pinterest media such as images and videos using web scraping methods.
 
+- Also see the same tool based on mobile app with easier use: https://github.com/motebaya/pindl-app
+
 ### Features:
 
 - Command-line interface (CLI) for easy usage
