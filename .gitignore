@@ -4,3 +4,4 @@ node_modules/*
 *.html
 *.json
 *.txt
+*.m3u8
