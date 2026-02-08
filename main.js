@@ -283,8 +283,6 @@ class Main extends Pinterest {
                 pinId: pinId.url,
               });
 
-        console.log(result);
-
         if (result.status) {
           if (metadata) {
             this.saveMetaData({
