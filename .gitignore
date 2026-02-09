@@ -5,3 +5,4 @@ node_modules/*
 *.json
 *.txt
 *.m3u8
+test*
