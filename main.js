@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 import Utils from "./lib/Utils.js";
 import Downloader from "./lib/downloader.js";
 import boxen from "boxen";
+import HLS from "./lib/extractor/HLS.js";
 
 class Main extends Pinterest {
   constructor(verbose = false) {
@@ -21,6 +22,7 @@ class Main extends Pinterest {
       fileURLToPath(import.meta.url),
       `../pinterest-downloader-output`,
     );
+    HLS.setLogger(this.log);
   }
 
   /**
@@ -152,7 +154,7 @@ class Main extends Pinterest {
    * @returns {Promise<void>}
    */
   async extract(opts) {
-    let { username, pinId, metadata, overwrite, type, cache } = opts;
+    let { username, pinId, metadata, overwrite, type, cache, pages } = opts;
     let result;
     if (cache) {
       if (!username) {
@@ -170,6 +172,7 @@ class Main extends Pinterest {
       } else {
         result = await this.getUserPin({
           username,
+          pages,
         });
       }
 
@@ -196,6 +199,7 @@ class Main extends Pinterest {
               t: r.title,
               i: r.videos?.video_list?.V_720P?.thumbnail,
               p: r.pinId,
+              c: r.videos?.video_list?.V_720P?.need_convert,
             });
           }
           return m;
@@ -236,20 +240,41 @@ class Main extends Pinterest {
                 : false;
           if (godl) {
             this.log.info(
-              ` ${chalk.yellow(item.i ? "video" : "image")} (${chalk.yellow(
+              `${chalk.white(item.i ? "Video" : "Image")} (${chalk.white(
                 index + 1,
               )}/${chalk.white(media.length)}) ${chalk.white(
                 item.t,
               )} - (${chalk.white(item.p)})`,
             );
-            await Downloader._download({
-              url: item.u,
-              filename: item.u.split("/").slice(-1)[0],
-              logger: this.log,
-              username: `@${result.author.username}`,
-              overwrite: overwrite || false,
-              media_type: item.i ? "videos" : "images",
-            });
+            if (!item.c) {
+              await Downloader._download({
+                url: item.u,
+                filename: item.u.split("/").slice(-1)[0],
+                logger: this.log,
+                username: `@${result.author.username}`,
+                overwrite: overwrite || false,
+                media_type: item.i ? "videos" : "images",
+              });
+            } else {
+              this.log.debug(`Found HLS video::${chalk.green(item.p)}`);
+              const convertOk = await HLS.convert({
+                hlsUrl: item.u,
+                outputMp4: path.join(
+                  `${Utils.getDefaultPath()}/@${result.author.username}/videos`,
+                  item.u
+                    .split("/")
+                    .slice(-1)[0]
+                    .replace(path.extname(item.u), ".mp4"),
+                ),
+              });
+              if (convertOk.status) {
+                this.log.info(
+                  `HLS conversion completed::${chalk.green(item.p)}`,
+                );
+              } else {
+                this.log.error(`HLS conversion failed::${chalk.red(item.p)}`);
+              }
+            }
           } else {
             this.log.warn(
               `skipping::${chalk.white(item.p)}, not match type::${chalk.white(
