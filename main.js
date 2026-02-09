@@ -257,15 +257,29 @@ class Main extends Pinterest {
               });
             } else {
               this.log.debug(`Found HLS video::${chalk.green(item.p)}`);
+              let outputMp4 = path.join(
+                `${Utils.getDefaultPath()}/@${result.author.username}/videos`,
+                item.u
+                  .split("/")
+                  .slice(-1)[0]
+                  .replace(path.extname(item.u), ".mp4"),
+              );
+              if (fs.existsSync(outputMp4) && !overwrite) {
+                this.log.warn(
+                  `file already exists, skipping HLS conversion::${chalk.white(
+                    outputMp4,
+                  )}`,
+                );
+                continue;
+              } else {
+                this.log.info(
+                  "overwrite mode received for HLS conversion::" +
+                    `${chalk.white(outputMp4)}`,
+                );
+              }
               const convertOk = await HLS.convert({
                 hlsUrl: item.u,
-                outputMp4: path.join(
-                  `${Utils.getDefaultPath()}/@${result.author.username}/videos`,
-                  item.u
-                    .split("/")
-                    .slice(-1)[0]
-                    .replace(path.extname(item.u), ".mp4"),
-                ),
+                outputMp4: outputMp4,
               });
               if (convertOk.status) {
                 this.log.info(
