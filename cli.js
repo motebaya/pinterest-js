@@ -47,6 +47,12 @@ import Main from "./main.js";
     action: "store_true",
     help: "overwrite existing files",
   });
+  parser.add_argument("--pages", {
+    type: "int",
+    help: "number of pages to download, default: 50",
+    metavar: "",
+    default: 50,
+  });
 
   const group = parser.add_argument_group("Additional");
   group.add_argument("-V", "--verbose", {
@@ -62,6 +68,7 @@ import Main from "./main.js";
       metadata: args.metadata,
       overwrite: args.overwrite,
       cache: args.cache,
+      pages: args.pages,
     });
   } else {
     parser.print_help();
