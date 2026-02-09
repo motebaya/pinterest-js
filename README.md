@@ -65,6 +65,7 @@ optional arguments:
   -c, --cache     using metadata from cache, <username> or <pinId> if exists
   -m, --metadata  save metadata to <output>/<id>/metadata.json
   -o, --overwrite overwrite existing files
+  --pages           number of pages to download, default: 100
 
 additional:
   -V, --verbose   verbose output to console
