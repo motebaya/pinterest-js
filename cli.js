@@ -49,9 +49,9 @@ import Main from "./main.js";
   });
   parser.add_argument("--pages", {
     type: "int",
-    help: "number of pages to download, default: 50",
+    help: "number of max pages to download, default: 100",
     metavar: "",
-    default: 50,
+    default: 100,
   });
 
   const group = parser.add_argument_group("Additional");
