@@ -5,7 +5,7 @@
  * with an explicit, bounded page limit. Never issues unbounded requests.
  */
 
-import { resourceUrl, HOST } from "../../config/urls.js";
+import { resourceUrl } from "../../config/urls.js";
 import { pinterestHeaders } from "../http/client.js";
 import { AppError } from "../../util/errors.js";
 import { getResource } from "./resources.js";
@@ -101,7 +101,8 @@ export async function fetchResource(client, { name, opts, session, maxPages = 10
 
     const rawRows = Array.isArray(rr.data) ? rr.data : [];
     if (rawRows.length === 0) {
-      log?.info?.(`no more rows for ${name}`, { scope });
+      // Internal pagination detail — debug-only so normal CLI output stays clean.
+      log?.debug?.(`no more rows for ${name}`, { scope });
       break;
     }
 
@@ -124,11 +125,9 @@ export async function fetchResource(client, { name, opts, session, maxPages = 10
       break;
     }
     if (pagesFetched >= hardMaxPages) {
-      log?.info?.(`page limit reached (${hardMaxPages}); ${rows.length} rows collected`, { scope });
+      log?.debug?.(`page limit reached (${hardMaxPages}); ${rows.length} rows collected`, { scope });
     }
   }
 
   return { rows, author, pages: pagesFetched, bookmark };
 }
-
-export { HOST };

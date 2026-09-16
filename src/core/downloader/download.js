@@ -166,20 +166,31 @@ async function attemptOnce({ url, expect, tmpPath, finalPath, log, showProgress,
 
   const total = Number(response.headers["content-length"]);
   const contentType = String(response.headers["content-type"] ?? "");
+  const knownSize = Number.isFinite(total) && total > 0;
 
-  /** @type {import("cli-progress").SingleBar} */
+  /**
+   * Progress bar. Never started when the size is unknown (no spinner theater);
+   * always torn down with stop() + clearLine() so the next log line starts on
+   * a clean line instead of colliding with the bar.
+   * Note: cli-progress exposes the transferred count as {value} — {current} is
+   * not a placeholder and would render literally.
+   * @type {import("cli-progress").SingleBar|null}
+   */
   let bar = null;
-  if (showProgress) {
+  if (showProgress && knownSize) {
+    const label = path.basename(finalPath);
     bar = new progress.Bar({
       barCompleteChar: "\u2501",
-      barInCompleteChar: "-",
+      barIncompleteChar: "\u2500",
       fps: 10,
       stream: process.stdout,
       barsize: 30,
       clearOnComplete: true,
-      format: `Downloading ${chalk.cyan(path.basename(finalPath))} [{bar}] {percentage}% | {current}/{total}`,
+      linewrap: false,
+      format: `  ${chalk.cyan(label)} [{bar}] {percentage}% | {value}/{total}`,
+      formatValue: (v) => humanSize(v).padStart(8),
     });
-    bar.start(Number.isFinite(total) ? total : 100, 0);
+    bar.start(total, 0);
   }
 
   await new Promise((resolve, reject) => {
@@ -193,7 +204,15 @@ async function attemptOnce({ url, expect, tmpPath, finalPath, log, showProgress,
     const finish = (err) => {
       if (settled) return;
       settled = true;
-      bar?.stop();
+      if (bar) {
+        bar.stop();
+        bar.terminate(); // clear the rendered line so logs never collide
+        bar = null;
+      }
+      // Tear the streams down immediately: the temp file must be closed
+      // before the caller's cleanup unlinks it (EPERM on Windows otherwise).
+      response.data?.destroy?.();
+      out.destroy();
       if (err) reject(err);
       else resolve();
     };
@@ -204,7 +223,9 @@ async function attemptOnce({ url, expect, tmpPath, finalPath, log, showProgress,
         headChunks.push(chunk);
         headLen += chunk.length;
       }
-      bar?.increment(chunk.length);
+      // Only feed the bar while it is active; {value}-based rendering must
+      // never receive a negative increment (e.g. via a content-length change).
+      if (bar) bar.increment(Math.max(0, Math.min(chunk.length, total - (bytes - chunk.length))));
     });
     response.data.on("error", (err) => finish(new AppError("E_NETWORK", `stream error: ${err.message}`, { cause: err })));
     out.on("error", (err) => finish(new AppError("E_FILESYSTEM", `write failed: ${err.message}`, { cause: err })));

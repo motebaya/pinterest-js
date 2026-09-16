@@ -133,7 +133,7 @@ export async function convertHlsToMp4({ hlsUrl, outputPath, log, signal }) {
   const tmpPath = `${outputPath}.part.mp4`;
   removeFile(tmpPath);
 
-  log?.info?.(`HLS: fetching master playlist`, { scope: "HLS" });
+  log?.debug?.(`HLS: fetching master playlist`, { scope: "HLS" });
   let masterText;
   try {
     const res = await axios.get(hlsUrl, { responseType: "text", timeout: HLS_TIMEOUT_MS, validateStatus: null });
@@ -158,7 +158,7 @@ export async function convertHlsToMp4({ hlsUrl, outputPath, log, signal }) {
   const audioUrl = selectAudioUrl(hlsObj, hlsUrl, best);
   const resolution = best.resolution ? `${best.resolution.width}x${best.resolution.height}` : null;
 
-  log?.info?.(
+  log?.debug?.(
     `HLS: selected variant ${resolution ?? "?"} @ ${best.bandwidth ?? "?"} bps` +
       (audioUrl ? " (separate audio)" : " (muxed audio)"),
     { scope: "HLS" },
@@ -183,7 +183,7 @@ export async function convertHlsToMp4({ hlsUrl, outputPath, log, signal }) {
     validateMp4(tmpPath);
     atomicMove(tmpPath, outputPath);
     const bytes = fs.statSync(outputPath).size;
-    log?.info?.(`HLS: converted to ${path.basename(outputPath)} (${humanSize(bytes)}, ${resolution ?? "?"})`, {
+    log?.debug?.(`HLS: converted to ${path.basename(outputPath)} (${humanSize(bytes)}, ${resolution ?? "?"})`, {
       scope: "HLS",
     });
     return { status: true, file: outputPath, bytes, resolution };

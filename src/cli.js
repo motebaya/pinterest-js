@@ -28,14 +28,14 @@ import { runUserPipeline, runPinPipeline, runCachedUserPipeline } from "./servic
 async function pickBoards(boards) {
   const sorted = boards.slice().sort((a, b) => b.pinCount - a.pinCount);
   const choices = sorted.map((b, i) => ({
-    name: `${String(i + 1).padStart(2, "0")}. ${chalk.yellow(b.pinCount)} pins — ${b.name}`,
+    name: `${String(i + 1).padStart(2, "0")}. ${chalk.yellow(b.pinCount)} pins — ${b.name || b.slug || b.id}`,
     value: b,
   }));
   const answers = await inquirer.prompt([
     {
       type: "checkbox",
       name: "boards",
-      message: "Select boards:",
+      message: "Select boards to download (space = select, a = all, enter = confirm):",
       pageSize: 12,
       choices,
     },
@@ -44,28 +44,50 @@ async function pickBoards(boards) {
 }
 
 /**
- * Interactive section-mode picker for one board.
- * @returns {Promise<"all"|"sections"|"skip">}
+ * Interactive per-board action prompt. Shown only for boards that have
+ * sections.
+ *
+ * @param {object} board full board model (id/name/slug/pinCount)
+ * @param {Array<{id:string,slug:string,name:string,pinCount:number}>} sections fetched sections of the board
+ * @returns {Promise<"all"|"skip"|object[]>} "all" = whole board (incl. sections),
+ *   "skip" = leave this board out, array = only the chosen sections
  */
-async function pickSectionMode(board) {
+async function pickBoardAction(board, sections) {
+  const label = board?.name || board?.slug || board?.id || "(unknown board)";
   const answers = await inquirer.prompt([
     {
       type: "list",
       name: "mode",
-      message: `Board "${board.name}":`,
+      message: `Board "${label}" has ${sections.length} section(s). Download:`,
       choices: [
-        { name: "download all board content (including sections)", value: "all" },
-        { name: "pick a section to download", value: "sections" },
+        { name: "the whole board (pins + all sections)", value: "all" },
+        { name: "only some sections…", value: "pick" },
         { name: "skip this board", value: "skip" },
       ],
     },
   ]);
-  return answers.mode;
+  if (answers.mode === "all") return "all";
+  if (answers.mode === "skip") return "skip";
+
+  const sectionAnswers = await inquirer.prompt([
+    {
+      type: "checkbox",
+      name: "sections",
+      message: "Select sections (space = select, a = all, enter = confirm):",
+      pageSize: 12,
+      choices: sections.map((s) => ({
+        name: `${chalk.yellow(s.pinCount)} pins — ${s.name || s.slug || s.id}`,
+        value: s,
+      })),
+    },
+  ]);
+  return sectionAnswers.sections; // empty array = nothing selected → board skipped
 }
 
 const parser = new ArgumentParser({
   description: `      Pinterest Downloader\n   @github.com/motebaya — rebuilt`,
   formatter_class: RawTextHelpFormatter,
+  prog: "pinterest-js",
 });
 
 parser.add_argument("-u", "--username", {
@@ -223,7 +245,7 @@ async function main() {
       username,
       mode: args.feed ? "feed" : "board",
       boardSelection: args.board ? pickBoards : undefined,
-      sectionSelection: args.board ? pickSectionMode : undefined,
+      sectionSelection: args.board ? pickBoardAction : undefined,
     },
     opts,
   );

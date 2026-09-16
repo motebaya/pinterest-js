@@ -41,6 +41,17 @@ function applyOutputDir(opts) {
 }
 
 /**
+ * Human label for a board that never renders "undefined"/empty — falls back
+ * to the slug, then the id, then a literal placeholder.
+ * @param {import("../core/pinterest/types.js").Board|string} board board model or board id
+ * @returns {string}
+ */
+function boardLabel(board) {
+  if (typeof board === "string") return board || "(unknown board)";
+  return board?.name || board?.slug || (board?.id ? `board ${board.id}` : "(unknown board)");
+}
+
+/**
  * Summarize extraction results in a console box.
  * @param {string} title
  * @param {Array<[string, string|number]>} rows
@@ -123,14 +134,14 @@ async function downloadOne({ media, pin, username, opts, log }) {
 
 /**
  * Run the full pipeline for a username (feed or board flows).
- * @param {{ username: string, mode: "feed"|"board", boardSelection?: (boards: object[]) => Promise<object[]|null>, sectionSelection?: (boardId: string, sections: object[]) => Promise<"all"|"sections"|"skip"> }} p
+ * @param {{ username: string, mode: "feed"|"board", boardSelection?: (boards: object[]) => Promise<object[]|null>, sectionSelection?: (board: object, sections: object[]) => Promise<"all"|"skip"|object[]>, pinterest?: Pinterest }} p
  * @param {PipelineOptions} opts
  */
-export async function runUserPipeline({ username, mode, boardSelection, sectionSelection }, opts) {
+export async function runUserPipeline({ username, mode, boardSelection, sectionSelection, pinterest: injected }, opts) {
   const log = opts.log;
   const type = requireMediaType(opts.type ?? "image");
   applyOutputDir(opts);
-  const pinterest = new Pinterest({ verbose: opts.verbose, log });
+  const pinterest = injected ?? new Pinterest({ verbose: opts.verbose, log });
   log?.debug?.(`output root: ${getOutputDir()}`, { scope: "Pipeline" });
 
   let author;
@@ -164,11 +175,12 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
     }
 
     pins = [];
+    let fetchedBoards = 0;
     for (const board of selected) {
-      const choice = sectionSelection ? await sectionSelection(board.id, []) : "all";
-      if (choice === "skip") continue;
+      const label = boardLabel(board);
 
-      // sections of this board
+      // Sections first (single bounded request) so the picker can show real
+      // choices. Boards without sections skip the section prompt entirely.
       let sections = [];
       try {
         const secResult = await pinterest.extractBoardSections({
@@ -179,12 +191,34 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
         });
         sections = secResult.sections;
       } catch (err) {
-        log?.warn?.(`no sections for board "${board.name}": ${err.message}`, { scope: "Pipeline" });
+        log?.warn?.(`could not list sections for ${label}: ${err.message}`, { scope: "Pipeline" });
       }
 
-      if (choice === "sections" && sections.length > 0) {
-        for (const section of sections) {
-          log?.info?.(`fetching section "${section.name}" (${section.pinCount} pins)`, { scope: "Pipeline" });
+      // Decide what to download from this board. Default: everything.
+      // The picker may return "all", "skip", or an array of chosen sections.
+      let choice = "all";
+      let chosenSections = sections;
+      if (sections.length > 0 && sectionSelection) {
+        const picked = await sectionSelection(board, sections);
+        if (picked === "skip") {
+          log?.info?.(`skipped ${label}`, { scope: "Pipeline" });
+          continue;
+        }
+        if (Array.isArray(picked)) {
+          if (picked.length === 0) {
+            log?.warn?.(`no sections selected for ${label} — skipped`, { scope: "Pipeline" });
+            continue;
+          }
+          choice = "sections";
+          chosenSections = picked;
+        }
+      }
+
+      if (choice === "sections") {
+        fetchedBoards += 1;
+        for (const section of chosenSections) {
+          const sectionLabel = section.name || section.slug || section.id;
+          log?.info?.(`fetching ${label} → section "${sectionLabel}" (${section.pinCount} pins)`, { scope: "Pipeline" });
           const secPins = await pinterest.extractBoardSectionPins({
             username,
             boardId: board.id,
@@ -196,6 +230,8 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
           pins.push(...secPins.pins);
         }
       } else {
+        fetchedBoards += 1;
+        log?.info?.(`fetching ${label} (${board.pinCount} pins, ${sections.length} section(s))`, { scope: "Pipeline" });
         const boardPins = await pinterest.extractBoardPins({
           username,
           boardId: board.id,
@@ -203,7 +239,7 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
           maxPages: opts.maxPages,
         });
         pins.push(...boardPins.pins);
-        // BoardFeedResource excludes section content; fetch sections fully too
+        // BoardFeedResource excludes section content; fetch sections fully too.
         for (const section of sections) {
           const secPins = await pinterest.extractBoardSectionPins({
             username,
@@ -217,7 +253,15 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
         }
       }
     }
-    log?.info?.(`collected ${pins.length} pins from ${selected.length} board(s)`, { scope: "Pipeline" });
+    // The same pin can arrive via both the board feed and a section — keep
+    // the first occurrence, preserve order.
+    const seen = new Set();
+    pins = pins.filter((p) => {
+      if (!p.id || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+    log?.info?.(`collected ${pins.length} pins from ${fetchedBoards} of ${selected.length} selected board(s)`, { scope: "Pipeline" });
   }
 
   if (!author?.username) author = { username, name: username, userId: "" };
@@ -254,12 +298,14 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
     return { downloaded: 0, failed: 0 };
   }
 
+  log?.info?.(`downloading ${plan.length} ${type}${plan.length === 1 ? "" : "s"} → ${path.join(path.basename(getOutputDir()), author.username)}${opts.overwrite ? " (overwrite on)" : ""}`, { scope: "Pipeline" });
+
   let downloaded = 0;
   let skipped = 0;
   let failed = 0;
   const start = Date.now();
   for (const [index, item] of plan.entries()) {
-    log?.info?.(
+    log?.debug?.(
       `[${index + 1}/${plan.length}] ${item.media.kind} ${chalk.white(item.pin.id)} ${chalk.dim(item.pin.title.slice(0, 60))}`,
       { scope: "Pipeline" },
     );
@@ -410,7 +456,5 @@ export async function runCachedUserPipeline({ username }, opts) {
     ["Failed", failed],
   ]);
   return { downloaded, failed, skipped };
-}
-
-// re-export for CLI use
+}    // re-export for CLI use
 export { getUserOutputDir, humanSize, setOutputDir };
