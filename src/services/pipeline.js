@@ -14,7 +14,7 @@ import { downloadMedia } from "../core/downloader/download.js";
 import { convertHlsToMp4 } from "../core/hls/convert.js";
 import { pinKind, planDownloads, requireMediaType } from "../core/media/select.js";
 import { saveMetadata, loadUserCache, findPinMetadata } from "./metadata.js";
-import { getMediaOutputDir, getUserOutputDir, resolveOutputRoot } from "../config/paths.js";
+import { getMediaOutputDir, getUserOutputDir, getOutputDir, setOutputDir } from "../config/paths.js";
 import { AppError } from "../util/errors.js";
 import { toBoxes, humanSize } from "../util/format.js";
 
@@ -26,9 +26,19 @@ import { toBoxes, humanSize } from "../util/format.js";
  * @property {boolean} [metadata=false]
  * @property {boolean} [overwrite=false]
  * @property {string} [cache]
+ * @property {string} [outputDir] explicit output root (CLI --output-dir)
  * @property {boolean} [yes=false] skip interactive confirm
  * @property {object} [log]
  */
+
+/**
+ * Apply the per-run output-root override (CLI --output-dir) before any path
+ * helper is used. Precedence inside paths.js: CLI > env var > default.
+ * @param {PipelineOptions} opts
+ */
+function applyOutputDir(opts) {
+  setOutputDir(opts.outputDir);
+}
 
 /**
  * Summarize extraction results in a console box.
@@ -119,9 +129,9 @@ async function downloadOne({ media, pin, username, opts, log }) {
 export async function runUserPipeline({ username, mode, boardSelection, sectionSelection }, opts) {
   const log = opts.log;
   const type = requireMediaType(opts.type ?? "image");
+  applyOutputDir(opts);
   const pinterest = new Pinterest({ verbose: opts.verbose, log });
-  const root = resolveOutputRoot();
-  log?.debug?.(`output root: ${root}`, { scope: "Pipeline" });
+  log?.debug?.(`output root: ${getOutputDir()}`, { scope: "Pipeline" });
 
   let author;
   /** @type {import("../core/pinterest/types.js").Pin[]} */
@@ -294,6 +304,7 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
 export async function runPinPipeline({ pinInput }, opts) {
   const log = opts.log;
   const type = requireMediaType(opts.type ?? "image");
+  applyOutputDir(opts);
   const pinterest = new Pinterest({ verbose: opts.verbose, log });
 
   // Cache path: -c <pinId> loads the pin metadata instead of hitting network
@@ -364,6 +375,7 @@ export async function runPinPipeline({ pinInput }, opts) {
  * @param {PipelineOptions} opts
  */
 export async function runCachedUserPipeline({ username }, opts) {
+  applyOutputDir(opts);
   const log = opts.log;
   const type = requireMediaType(opts.type ?? "image");
   const cached = loadUserCache({ username, log });
@@ -401,4 +413,4 @@ export async function runCachedUserPipeline({ username }, opts) {
 }
 
 // re-export for CLI use
-export { getUserOutputDir, humanSize };
+export { getUserOutputDir, humanSize, setOutputDir };

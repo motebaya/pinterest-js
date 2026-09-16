@@ -108,6 +108,11 @@ action.add_argument("-b", "--board", {
 });
 
 const flags = parser.add_argument_group("options");
+flags.add_argument("-d", "--output-dir", {
+  type: "str",
+  help: `output root for downloads and metadata.\nexample: (${chalk.green("D:\\Downloads\\pinterest")}) — overrides ${chalk.yellow("PINTEREST_JS_OUTPUT_DIR")}`,
+  metavar: "",
+});
 flags.add_argument("-m", "--metadata", {
   action: "store_true",
   help: "save pin/user metadata JSON next to downloads",
@@ -176,6 +181,7 @@ async function main() {
     overwrite: args.overwrite,
     yes: args.yes,
     cache: args.cache,
+    outputDir: args.output_dir,
     log,
   };
 

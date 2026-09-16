@@ -44,6 +44,7 @@ pinterest-js -c <username|pinId>           re-download from cached metadata
 | `-b, --board` | With `-u`: pick boards/sections interactively |
 | `-n, --pages <n>` | Max pages per resource (default 100, 25 pins/page) |
 | `-c, --cache <username\|pinId>` | Re-download from previously saved metadata |
+| `-d, --output-dir <dir>` | Output root for downloads and metadata (overrides `PINTEREST_JS_OUTPUT_DIR`) |
 | `-m, --metadata` | Save pin/user metadata JSON next to downloads |
 | `-o, --overwrite` | Re-download even if files exist (default: skip) |
 | `-y, --yes` | Skip the download confirmation prompt |
@@ -99,8 +100,10 @@ pinterest-downloader-output/
         └── metadata/<pinId>.json
 ```
 
-Override the output root with the `PINTEREST_JS_OUTPUT_DIR` environment
-variable.
+The output root follows this precedence: `-d/--output-dir` flag >
+`PINTEREST_JS_OUTPUT_DIR` environment variable >
+`<project root>/pinterest-downloader-output`. The same root is used for
+downloads and for metadata/cache files.
 
 ## Downloads you can trust
 
