@@ -205,16 +205,21 @@ async function attemptOnce({ url, expect, tmpPath, finalPath, log, showProgress,
       if (settled) return;
       settled = true;
       if (bar) {
-        bar.stop();
-        bar.terminate(); // clear the rendered line so logs never collide
+        bar.stop(); // final render + clearLine (clearOnComplete) — terminate() does not exist in cli-progress 3.x
         bar = null;
       }
-      // Tear the streams down immediately: the temp file must be closed
-      // before the caller's cleanup unlinks it (EPERM on Windows otherwise).
-      response.data?.destroy?.();
-      out.destroy();
-      if (err) reject(err);
-      else resolve();
+      // On the error/abort path, tear the streams down immediately: the temp
+      // file must be closed before the caller's cleanup unlinks it (EPERM on
+      // Windows otherwise). On the SUCCESS path the out stream finishes on
+      // its own — destroying it from inside its own 'finish' event would
+      // leave this promise unsettled forever.
+      if (err) {
+        response.data?.destroy?.();
+        out.destroy();
+        reject(err);
+      } else {
+        resolve();
+      }
     };
 
     response.data.on("data", (chunk) => {
