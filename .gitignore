@@ -1,8 +1,6 @@
-trash/*
-pinterest-downloader-output/*
-node_modules/*
-*.html
-*.json
+node_modules/
+pinterest-downloader-output/
+trash/
 *.txt
+*.html
 *.m3u8
-test*
