@@ -117,7 +117,15 @@ export function validateDownloadedContent({ head, contentType, bytesWritten, exp
     return detected;
   }
 
-  // Unknown signature: trust declared content-type only if it is media-ish
+  // Unknown signature: never accept tiny files regardless of declared type —
+  // truncated responses are the most common false-success after HTML pages.
+  if (bytesWritten < minBytes) {
+    throw new AppError(
+      "E_VALIDATION_FAILED",
+      `file too small (${bytesWritten} bytes) to be valid media`,
+    );
+  }
+
   const declared = mediaSuperType(contentType);
   if (declared === expect) return contentType;
   if (declared && declared !== expect) {
@@ -131,9 +139,6 @@ export function validateDownloadedContent({ head, contentType, bytesWritten, exp
   // (video containers are more varied; images always have known signatures).
   if (expect === "image") {
     throw new AppError("E_VALIDATION_FAILED", "unrecognized image signature");
-  }
-  if (bytesWritten < minBytes) {
-    throw new AppError("E_VALIDATION_FAILED", `file too small (${bytesWritten} bytes) to be valid media`);
   }
   return contentType ?? "video/unknown";
 }

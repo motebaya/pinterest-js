@@ -44,13 +44,13 @@ export function selectBestVariant(hlsObj) {
  * @returns {string|null}
  */
 export function normalizeAudioGroupId(variant) {
+  const attrs = variant?.attributes;
+  if (attrs && typeof attrs.AUDIO === "string") return attrs.AUDIO;
   const a = variant?.audio;
   if (!a) return null;
   if (typeof a === "string") return a;
   if (Array.isArray(a)) return typeof a[0]?.groupId === "string" ? a[0].groupId : null;
   if (typeof a?.groupId === "string") return a.groupId;
-  const attrs = variant?.attributes;
-  if (attrs && typeof attrs.AUDIO === "string") return attrs.AUDIO;
   return null;
 }
 
@@ -136,7 +136,7 @@ export async function convertHlsToMp4({ hlsUrl, outputPath, log, signal }) {
   log?.info?.(`HLS: fetching master playlist`, { scope: "HLS" });
   let masterText;
   try {
-    const res = await axios.get(hlsUrl, { responseType: "text", timeout: HLS_TIMEOUT_MS });
+    const res = await axios.get(hlsUrl, { responseType: "text", timeout: HLS_TIMEOUT_MS, validateStatus: null });
     if (res.status !== 200) {
       throw new AppError("E_FFMPEG", `master playlist returned HTTP ${res.status}`);
     }

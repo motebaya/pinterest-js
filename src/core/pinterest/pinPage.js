@@ -33,19 +33,40 @@ export function parseRelayPayloads(html) {
 
 /**
  * Walk relay payloads and find the first record whose data looks like a pin.
+ * Accepts both success records (media fields) and error records
+ * (`__typename: "PinNotFound"`) so callers can classify the outcome.
  * @param {object[]} payloads
  * @returns {{ relayKey: string, data: object } | null}
  */
 export function findPinRecord(payloads) {
   for (const payload of payloads) {
     for (const [key, record] of Object.entries(payload?.data ?? {})) {
-      const d = record?.data;
-      if (d && typeof d === "object" && (d.imageLargeUrl || d.storyPinData || d.videos || d.entityId)) {
-        return { relayKey: key, data: d };
-      }
+      // Some relay keys (e.g. error responses) store the pin object directly
+      // instead of nesting it under `data`.
+      const d = record?.data ?? (looksLikePinRecord(record) ? record : null);
+      if (!d || typeof d !== "object") continue;
+      if (looksLikePinRecord(d)) return { relayKey: key, data: d };
     }
   }
   return null;
+}
+
+/**
+ * Recognize a pin record (success or error shape).
+ * @param {object} d
+ * @returns {boolean}
+ */
+function looksLikePinRecord(d) {
+  if (!d || typeof d !== "object") return false;
+  return Boolean(
+    d.imageLargeUrl ||
+      d.storyPinData ||
+      d.videos ||
+      d.entityId ||
+      // error-shaped pin records (deleted / invalid pins)
+      d.__typename === "PinNotFound" ||
+      d.__isError === "PinNotFound",
+  );
 }
 
 /**
