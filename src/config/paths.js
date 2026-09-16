@@ -1,48 +1,73 @@
 /**
- * Centralized output path resolver for pinterest-downloader
- * @github.com/motebaya - 2/14/2026 14:00PM
- * file: paths.js
+ * Output path resolution — single source of truth for where files go.
+ *
+ * Layout:
+ *   <root>/pinterest-downloader-output/
+ *     └── @<username>/
+ *          ├── <userId>.json                     (user metadata / cache)
+ *          ├── images/<file>                     (image files)
+ *          │   └── metadata/<pinId>.json         (pin image metadata)
+ *          └── videos/<file|.mp4>
+ *              └── metadata/<pinId>.json         (pin video metadata)
  */
 
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { ensureDir } from "../util/fs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/**
- * Name of the global output directory.
- * @type {string}
- */
-const OUTPUT_DIR_NAME = "pinterest-downloader-output";
+export const OUTPUT_DIR_NAME = "pinterest-downloader-output";
+
+/** Project root (src/config → repo root). */
+export const PROJECT_ROOT = path.resolve(__dirname, "../..");
 
 /**
- * Resolved project root (two levels up from src/config/).
- * @type {string}
- */
-const PROJECT_ROOT = path.resolve(__dirname, "../..");
-
-/**
- * Get the global output directory path.
- * Creates the directory if it does not exist.
- *
- * @returns {string} Absolute path to the output directory
+ * Output root, created if missing.
+ * @returns {string}
  */
 export function getOutputDir() {
-  const outputDir = path.join(PROJECT_ROOT, OUTPUT_DIR_NAME);
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-  return outputDir;
+  const dir = path.join(PROJECT_ROOT, OUTPUT_DIR_NAME);
+  ensureDir(dir);
+  return dir;
 }
 
 /**
- * Get the output directory for a specific Pinterest user.
- *
- * @param {string} username - The Pinterest username (with or without @ prefix)
- * @returns {string} Absolute path to the user's output directory
+ * Output directory for one user.
+ * @param {string} username with or without leading '@'
+ * @returns {string}
  */
 export function getUserOutputDir(username) {
   const normalized = username.startsWith("@") ? username : `@${username}`;
   return path.join(getOutputDir(), normalized);
+}
+
+/**
+ * Directory for one media type under a user.
+ * @param {string} username
+ * @param {"images"|"videos"} mediaType plural
+ */
+export function getMediaOutputDir(username, mediaType) {
+  return path.join(getUserOutputDir(username), mediaType);
+}
+
+/**
+ * Metadata directory for one media type under a user.
+ * @param {string} username
+ * @param {"images"|"videos"} mediaType plural
+ */
+export function getMetadataDir(username, mediaType) {
+  return path.join(getMediaOutputDir(username, mediaType), "metadata");
+}
+
+/** Default output override via environment variable (PINTEREST_JS_OUTPUT_DIR). */
+export function resolveOutputRoot() {
+  const envDir = process.env.PINTEREST_JS_OUTPUT_DIR;
+  if (envDir && envDir.trim()) {
+    const dir = path.resolve(envDir.trim());
+    ensureDir(dir);
+    return dir;
+  }
+  return getOutputDir();
 }
