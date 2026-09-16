@@ -308,8 +308,10 @@ export async function runPinPipeline({ pinInput }, opts) {
   }
 
   const pin = await pinterest.extractPin({ pinInput, log });
-  const media = pin.media.find((m) => m.kind === type) ?? pin.media[0];
-  if (!media) {
+  // Carousels carry one media entry per slot — download every entry of the
+  // requested type, not just the first.
+  const mediaList = pin.media.filter((m) => m.kind === type);
+  if (mediaList.length === 0) {
     throw new AppError("E_NO_MEDIA", `pin ${pin.id} has no ${type} media`);
   }
 
@@ -317,13 +319,13 @@ export async function runPinPipeline({ pinInput }, opts) {
     ["Author", `@${pin.author.username || "-"}`],
     ["Title", pin.title || "-"],
     ["Pin", pin.id],
-    ["Type", media.kind === "video" ? `video (${media.container})` : "image"],
-    ["Size", media.width && media.height ? `${media.width}x${media.height}` : "-"],
+    ["Type", mediaList[0].kind === "video" ? `video (${mediaList[0].container})` : `image${mediaList.length > 1 ? ` ×${mediaList.length}` : ""}`],
+    ["Items", mediaList.length],
   ]);
 
   if (opts.metadata) {
     saveMetadata({
-      kind: media.kind === "video" ? "videos" : "images",
+      kind: mediaList[0].kind === "video" ? "videos" : "images",
       username: pin.author.username || "unknown",
       fileId: pin.id,
       data: { exportedAt: new Date().toISOString(), ...pin },
@@ -332,8 +334,27 @@ export async function runPinPipeline({ pinInput }, opts) {
     });
   }
 
-  const result = await downloadOne({ media, pin, username: pin.author.username || "unknown", opts, log });
-  return { downloaded: result.skipped ? 0 : 1, failed: 0, skipped: result.skipped ? 1 : 0 };
+  let downloaded = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const [index, media] of mediaList.entries()) {
+    if (mediaList.length > 1) {
+      log?.info?.(`[${index + 1}/${mediaList.length}] ${chalk.white(pin.id)}`, { scope: "Pipeline" });
+    }
+    try {
+      const result = await downloadOne({ media, pin, username: pin.author.username || "unknown", opts, log });
+      if (result?.skipped) {
+        skipped += 1;
+        log?.warn?.(`already exists, skipped: ${chalk.white(path.basename(result.file))}`, { scope: "Pipeline" });
+      } else {
+        downloaded += 1;
+      }
+    } catch (err) {
+      failed += 1;
+      log?.error?.(`item ${index + 1}: ${err.message}`, { scope: "Pipeline" });
+    }
+  }
+  return { downloaded, failed, skipped };
 }
 
 /**
