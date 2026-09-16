@@ -1,11 +1,10 @@
 # pinterest-js
 
 Download Pinterest media — single pins (images, videos, carousels) or a user's
-whole feed/boards — from the command line.
+feed/boards — from the command line.
 
-Rebuilt from the ground up around a resource-registry extraction layer, a
-hardened downloader (validated, atomic writes), and HLS→MP4 conversion via
-ffmpeg.
+Built around a resource-registry extraction layer, a hardened downloader
+(validated, atomic writes), and HLS→MP4 conversion via a bundled ffmpeg.
 
 ## Requirements
 
@@ -20,19 +19,21 @@ cd pinterest-js
 npm install
 ```
 
-or globally:
+The package is not yet published to npm. For a global command from a clone,
+use `npm link` (or `npm install -g .`); after that, `pinterest-js …` works
+everywhere. All examples below use the direct form that always works:
 
 ```bash
-npm install -g pinterest-js
+node src/cli.js …
 ```
 
 ## CLI usage
 
 ```text
-pinterest-js -p <pin-url|id> [-t image|video] [options]
-pinterest-js -u <username> --feed          download from the user's created-pins feed
-pinterest-js -u <username> --board         interactive board/section selection
-pinterest-js -c <username|pinId>           re-download from cached metadata
+node src/cli.js -p <pin-url|id> [-t image|video] [options]
+node src/cli.js -u <username> --feed          download from the user's created-pins feed
+node src/cli.js -u <username> --board         interactive board/section selection
+node src/cli.js -c <username|pinId>           re-download from cached metadata
 ```
 
 | Flag | Description |
@@ -42,7 +43,7 @@ pinterest-js -c <username|pinId>           re-download from cached metadata
 | `-t, --type <image\|video>` | Media type to download (default: `image`) |
 | `-f, --feed` | With `-u`: download the user's created-pins feed |
 | `-b, --board` | With `-u`: pick boards/sections interactively |
-| `-n, --pages <n>` | Max pages per resource (default 100, 25 pins/page) |
+| `-n, --pages <n>` | Max pages to fetch per resource (default 100; ~25 pins/page) |
 | `-c, --cache <username\|pinId>` | Re-download from previously saved metadata |
 | `-d, --output-dir <dir>` | Output root for downloads and metadata (overrides `PINTEREST_JS_OUTPUT_DIR`) |
 | `-m, --metadata` | Save pin/user metadata JSON next to downloads |
@@ -52,46 +53,81 @@ pinterest-js -c <username|pinId>           re-download from cached metadata
 
 ### Examples
 
+All of these are real acceptance commands; see
+`reports/public-release-audit.md` for verification results.
+
 ```bash
 # single image pin
-pinterest-js -p https://www.pinterest.com/pin/1135610862296056785/
+node src/cli.js -p https://www.pinterest.com/pin/1135610862296056785/
 
 # single video pin (mp4 direct, or HLS converted via ffmpeg)
-pinterest-js -p 21532904464936103 -t video
+node src/cli.js -p 21532904464936103 -t video
 
 # carousel pin — downloads every image in slot order
-pinterest-js -p https://www.pinterest.com/pin/1106618939716239771/
+node src/cli.js -p https://www.pinterest.com/pin/1106618939716239771/
 
-# a user's feed (images)
-pinterest-js -u @seihin_ --feed
+# a user's feed (images), capped to the first 2 pages, no confirm prompt
+node src/cli.js -u seihin_ --feed -n 2 -y
 
-# a user's feed as videos, first 2 pages only, no prompt
-pinterest-js -u seihin_ --feed -t video -n 2 -y
+# a user's feed as videos
+node src/cli.js -u seihin_ --feed -t video
 
 # interactive board download
-pinterest-js -u wendihariyanto49 --board
+node src/cli.js -u wendihariyanto49 --board
 
 # re-download from saved metadata without re-extracting
-pinterest-js -c seihin_
+node src/cli.js -c seihin_
 ```
 
-## Supported content
+## Pin, feed, board — what each mode does
 
-| Type | Behavior |
-| --- | --- |
-| Image pins | Best-quality URL (`orig` when served) |
-| Carousel pins | One image per slot, in slot order, collision-free filenames |
-| Video pins | Direct MP4 when Pinterest serves one (`V_720P` preferred); otherwise HLS master playlist → best variant → ffmpeg remux to MP4 |
-| Deleted/invalid pins | Clean `E_PIN_NOT_FOUND` error, exit code 1 |
-| Boards | Board listing → per-board pins + sections (interactive selection) |
-| Feed | Created-pins feed with bookmark pagination, bounded by `--pages` |
+**Pin (`-p`)** — extracts the pin page and downloads every media item of the
+requested type. A carousel yields one file per slot in slot order; a video pin
+prefers a native MP4 (`V_720P` first) and falls back to HLS → ffmpeg remux.
+
+**Feed (`-u … --feed`)** — pages through the user's created-pins feed
+(bookmark pagination, bounded by `-n/--pages`), then downloads media of the
+requested type. Every mode funnels into the same selection → download →
+summary pipeline.
+
+**Board (`-u … --board`)** — lists the user's boards and prompts:
+
+1. pick one or more boards (checkbox list, sorted by pin count)
+2. for each board **that has sections**, choose: the whole board (pins + all
+   sections), only some sections, or skip the board. Boards without sections
+   download immediately.
+3. the same download planner and summary are used as for feed/pin.
+
+Cancel at any prompt with Ctrl+C (exit code 130). Selecting nothing skips the
+run with a warning, not an error.
+
+## Pagination (`-n/--pages`)
+
+`-n` is a **hard cap on pages per resource request** (feed, board listing,
+section listing, board pins, section pins — each capped independently). One
+page is ~25 pins, so `-n 2` fetches at most ~50 pins per resource. The default
+is 100; pagination always stops when Pinterest stops returning bookmarks, so
+runs never issue unbounded requests.
+
+## Metadata & cache
+
+`-m/--metadata` writes JSON next to the downloads:
+
+- `@<user>/<userId>.json` — user-level snapshot (feed/board runs): author +
+  every pin with its media URLs. This file is what `-c <username>` loads.
+- `@<user>/<images|videos>/metadata/<pinId>.json` — per-pin snapshot; this is
+  what `-c <pinId>` loads.
+
+`-c/--cache` re-downloads from those files **without hitting Pinterest's
+pages**. Note: stored media URLs are Pinterest CDN links that may expire —
+if a cached re-download 403s, re-extract live instead.
 
 ## Output structure
 
 ```text
-pinterest-downloader-output/
+<output root>/
 └── @<username>/
-    ├── <userId>.json                  user metadata (with --metadata; also the -c cache)
+    ├── <userId>.json                  user metadata (with --metadata; the -c cache)
     ├── images/
     │   ├── <hash>.jpg
     │   └── metadata/<pinId>.json      per-pin metadata (with --metadata)
@@ -103,7 +139,14 @@ pinterest-downloader-output/
 The output root follows this precedence: `-d/--output-dir` flag >
 `PINTEREST_JS_OUTPUT_DIR` environment variable >
 `<project root>/pinterest-downloader-output`. The same root is used for
-downloads and for metadata/cache files.
+downloads and metadata/cache files.
+
+## Existing files: skip vs overwrite
+
+A file that already exists at its final path is **skipped** (reported as
+`skipped` in the summary) unless `-o/--overwrite` is given. Partial downloads
+are never left at the final path: everything is written to a `.part` temp file
+first.
 
 ## Downloads you can trust
 
@@ -114,49 +157,53 @@ downloads and for metadata/cache files.
   at the final path and never clobbers an existing valid file.
 - Transient failures (timeouts, 429/5xx, socket resets) retry up to 3 times
   with backoff; permanent failures (404/403) fail fast.
-- Existing files are skipped unless `--overwrite` is given.
+- HLS output is validated (size + MP4 box signature) before it is renamed.
 
 ## Terminal output
 
-Normal mode is compact and readable:
+Normal mode is compact and readable. Real example (video pin):
 
 ```text
-→ resolving pin page
-   ┌───────────  Pin  ────────────┐
-   │   Author: @lynclim           │
-   │   Type: video (mp4)          │
-   │   Size: 1280x720             │
-   └──────────────────────────────┘
+   ┌──────────────  Pin  ───────────────┐
+   │                                    │
+   │   Author: @lynclim                 │
+   │   Title: -                         │
+   │   Pin: 21532904464936103           │
+   │   Type: video (mp4)                │
+   │   Items: 1                         │
+   │                                    │
+   └────────────────────────────────────┘
 
-✓ saved a4801e8a…_720w.mp4 (493.16 kB) as video/mp4
+✓ saved a4801e8a7696debe1b70ba2beaa5a03b_720w.mp4 (493.16 kB) as video/mp4
 ✓ done: 1 downloaded, 0 failed
 ```
 
-`-V/--verbose` adds timestamps, module scopes, and HTTP request/response
-logging for diagnosis. A final summary box reports Downloaded / Skipped /
-Failed / Time for batch runs.
+Batch runs add a per-run header and a final summary box with
+Downloaded / Skipped / Failed / Time. `-V/--verbose` adds timestamps, module
+scopes, resource-level pagination diagnostics, and HTTP request/response
+logging for diagnosis.
 
 ## Exit codes
 
-| Code | Meaning |
-| --- | --- |
-| `0` | Success (including runs where everything was skipped) |
-| `1` | Runtime error (network, not found, download/validation, ffmpeg) |
-| `2` | Usage error (invalid username/pin input, missing action flag) |
-| `130` | Aborted by user (Ctrl+C) |
+| Code  | Meaning |
+| ----- | ------- |
+| `0`   | Success (including runs where everything was skipped) |
+| `1`   | Runtime error (network, not found, download/validation, ffmpeg) |
+| `2`   | Usage error (invalid username/pin input, missing action flag) |
+| `130` | Aborted by user (Ctrl+C at a prompt) |
 
 ## Testing / development
 
 ```bash
-npm test        # unit + integration suite (offline; no Pinterest traffic)
-npm run test:live   # manual live probe of the three acceptance pins
+npm test            # unit + integration suite (offline; no Pinterest traffic)
+npm run test:live   # manual live probe of the acceptance pins
 ```
 
 The suite uses Node's built-in test runner (`node:test`). Integration tests
 spin up local HTTP servers and a locally generated HLS tree (via the bundled
 ffmpeg) — they make **no network requests**. Live probes are separate by
-design; see `reports/04-testing-qa.md` for the framework rationale and
-results, and `reports/final-report.md` for live acceptance outcomes.
+design; see `reports/04-testing-qa.md` for framework rationale and
+`reports/public-release-audit.md` for the latest live acceptance results.
 
 ## Troubleshooting
 
@@ -181,8 +228,8 @@ results, and `reports/final-report.md` for live acceptance outcomes.
   path).
 - Rate limits unknown by design: the tool paces sequentially and caps pages;
   don't run large batches aggressively.
-- Metadata is a snapshot: cached re-downloads (`-c`) rely on stored URLs, which
-  Pinterest may expire.
+- Metadata is a snapshot: cached re-downloads (`-c`) rely on stored URLs,
+  which Pinterest may expire.
 
 ## Project layout
 
