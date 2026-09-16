@@ -40,11 +40,7 @@ export function parseRelayPayloads(html) {
  */
 export function findPinRecord(payloads) {
   for (const payload of payloads) {
-    for (const [key, record] of Object.entries(payload?.data ?? {})) {
-      // Some relay keys (e.g. error responses) store the pin object directly
-      // instead of nesting it under `data`.
-      const d = record?.data ?? (looksLikePinRecord(record) ? record : null);
-      if (!d || typeof d !== "object") continue;
+    for (const [key, d] of Object.entries(pinRecordsFromPayload(payload))) {
       if (looksLikePinRecord(d)) return { relayKey: key, data: d };
     }
   }
@@ -58,19 +54,58 @@ export function findPinRecord(payloads) {
  */
 function looksLikePinRecord(d) {
   if (!d || typeof d !== "object") return false;
-  return Boolean(
+  if (
     d.imageLargeUrl ||
-      d.storyPinData ||
-      d.videos ||
-      d.entityId ||
-      // error-shaped pin records (deleted / invalid pins)
-      d.__typename === "PinNotFound" ||
-      d.__isError === "PinNotFound",
-  );
+    d.storyPinData ||
+    d.videos ||
+    d.entityId ||
+    // error-shaped pin records (deleted / invalid pins)
+    d.__typename === "PinNotFound" ||
+    d.__isError === "PinNotFound"
+  ) {
+    return true;
+  }
+  // flat images_* map shape (live SSR records)
+  return Object.keys(d).some((k) => /^images_\w+$/.test(k) && d[k]?.url);
+}
+
+/**
+ * Collect all pin-shaped records from one relay payload. Live SSR payloads
+ * sometimes store the pin object directly under the relay key and sometimes
+ * nested under `data` — handle both.
+ * @param {object} payload
+ * @returns {Record<string, object>} relayKey -> record data
+ */
+function pinRecordsFromPayload(payload) {
+  /** @type {Record<string, object>} */
+  const out = {};
+  for (const [key, record] of Object.entries(payload?.data ?? {})) {
+    const d = record?.data ?? (looksLikePinRecord(record) ? record : null);
+    if (d && typeof d === "object") out[key] = d;
+  }
+  return out;
+}
+
+/**
+ * Collect the image map from a relay pin record. Live records expose flat
+ * `images_<size>` keys (images_236x, images_736x, images_orig, …) while
+ * older/alternate shapes nest them under `images`.
+ * @param {object} d pin record data
+ * @returns {Record<string, {url: string, width?: number, height?: number}>|null}
+ */
+function imageMapFromRecord(d) {
+  if (d.images && typeof d.images === "object") return d.images;
+  /** @type {Record<string, object>} */
+  const map = {};
+  for (const [key, value] of Object.entries(d)) {
+    if (/^images_/.test(key) && value?.url) map[key.replace(/^images_/, "")] = value;
+  }
+  return Object.keys(map).length ? map : null;
 }
 
 /**
  * Extract all media entries from a pin record (relay data).
+ * Carousel pins yield one image entry per carousel slot (in slot order).
  * @param {object} d pin record data
  * @returns {import("./types.js").Media[]}
  */
@@ -78,11 +113,21 @@ export function mediaFromPinRecord(d) {
   /** @type {import("./types.js").Media[]} */
   const media = [];
 
+  // Carousel: one image per slot (slots carry their own images_* maps).
+  const slots = d.carouselData?.carouselSlots ?? d.carousel_data?.carousel_slots;
+  if (Array.isArray(slots) && slots.length > 0) {
+    for (const slot of slots) {
+      const img = pickBestImage(imageMapFromRecord(slot));
+      if (img) media.push(img);
+    }
+    if (media.length > 0) return media;
+  }
+
   // Image: prefer imageLargeUrl (largest served), then the images map.
   if (d.imageLargeUrl) {
     media.push({ kind: "image", url: d.imageLargeUrl });
   } else {
-    const image = pickBestImage(d.images);
+    const image = pickBestImage(imageMapFromRecord(d));
     if (image) media.push(image);
   }
 
@@ -128,7 +173,14 @@ export async function fetchPin(client, { pinId, log }) {
   }
 
   const payloads = parseRelayPayloads(html);
-  const record = findPinRecord(payloads);
+  // Prefer the richest pin record on the page: some SSR payloads carry the
+  // full media set (images_*/carouselData) while others are media-less stubs.
+  const candidates = payloads
+    .map((payload) => Object.values(pinRecordsFromPayload(payload)))
+    .flat()
+    .filter((d) => looksLikePinRecord(d));
+  const record =
+    candidates.find((d) => mediaFromPinRecord(d).length > 0) ?? candidates[0] ?? null;
 
   if (!record) {
     // Distinguish a PinNotFound SSR response from an unparseable page.
@@ -141,7 +193,7 @@ export async function fetchPin(client, { pinId, log }) {
     );
   }
 
-  const d = record.data;
+  const d = record;
 
   if (d.__typename === "PinNotFound" || d.__isError === "PinNotFound") {
     throw new AppError("E_PIN_NOT_FOUND", `pin ${pinId} does not exist (deleted or invalid)`);

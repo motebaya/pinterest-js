@@ -185,6 +185,39 @@ describe("pin page parsing (fixtures)", () => {
   const imageHtml = fs.readFileSync(path.join(fixtureDir, "html/pin-image.html"), "utf8");
   const notFoundHtml = fs.readFileSync(path.join(fixtureDir, "html/pin-notfound.html"), "utf8");
 
+  it("extracts images from flat images_* relay records (live shape)", () => {
+    const rec = {
+      entityId: "1135610862296056785",
+      __typename: "Pin",
+      images_orig: { url: "https://i.pinimg.com/originals/e3/6e/c9/e36ec9b8d7e64213fb79e43c5339d08f.jpg", width: 736, height: 1311 },
+      images_236x: { url: "https://i.pinimg.com/236x/e3/6e/c9/e36ec9b8d7e64213fb79e43c5339d08f.jpg", width: 236, height: 420 },
+      images_736x: { url: "https://i.pinimg.com/736x/e3/6e/c9/e36ec9b8d7e64213fb79e43c5339d08f.jpg", width: 736, height: 1311 },
+    };
+    const media = mediaFromPinRecord(rec);
+    assert.equal(media.length, 1);
+    assert.equal(media[0].kind, "image");
+    assert.ok(media[0].url.includes("/originals/"), "orig should win");
+  });
+
+  it("extracts one image per carousel slot in slot order", () => {
+    const carousel = JSON.parse(fs.readFileSync(path.join(fixtureDir, "api/pin-carousel.json"), "utf8"));
+    const media = mediaFromPinRecord(carousel);
+    assert.equal(media.length, carousel.carouselData.carouselSlots.length);
+    const urls = new Set(media.map((m) => m.url));
+    assert.equal(urls.size, media.length, "carousel slots must not collapse to one url");
+    for (const m of media) assert.equal(m.kind, "image");
+  });
+
+  it("prefers imageLargeUrl over the images map", () => {
+    const rec = {
+      entityId: "1",
+      imageLargeUrl: "https://i.pinimg.com/1200x/aa/bb/cc/aabbcc.jpg",
+      images_orig: { url: "https://i.pinimg.com/originals/aa/bb/cc/aabbcc.jpg" },
+    };
+    const media = mediaFromPinRecord(rec);
+    assert.ok(media[0].url.includes("1200x"));
+  });
+
   it("extracts imageLargeUrl from the image-pin fixture", () => {
     const payloads = parseRelayPayloads(imageHtml);
     const rec = findPinRecord(payloads);
