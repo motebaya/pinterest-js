@@ -1,25 +1,31 @@
 /**
  * Central logger factory (winston).
  *
- * Levels: debug < info < warn < error. `-V/--verbose` maps to "debug".
- * Supports a `scope` metadata convention: log.info(msg, { scope: "Extract User Feed" }).
+ * Levels (quiet → loud): error < warn < success < info < debug.
+ * Normal CLI mode shows info and above with compact symbol prefixes.
+ * Verbose mode (-V/--verbose) adds timestamps and scopes for diagnosis.
+ *
+ * Symbol conventions (kept consistent across the CLI):
+ *   →  info / activity in progress
+ *   ✓  success / completed
+ *   ⚠  warning / skipped
+ *   ✗  error
+ *   ·  debug detail
  */
 
 import winston from "winston";
 import chalk from "chalk";
 
-const badge = {
-  info: chalk.bgHex("#2563eb").white.bold(" INFO  "),
-  debug: chalk.bgHex("#7c3aed").white.bold(" DEBUG "),
-  warn: chalk.bgHex("#facc15").black.bold(" WARN  "),
-  error: chalk.bgHex("#dc2626").white.bold(" ERROR "),
-};
+export const LOG_LEVELS = { error: 0, warn: 1, success: 2, info: 3, debug: 4 };
 
-const levelize = winston.format((info) => {
-  const level = info.level.toUpperCase();
-  info.level = badge[level] ?? level;
-  return info;
-});
+/** Prefix per level; info/notify renders plain so progress lines stay clean. */
+const SYMBOL = {
+  error: chalk.red("✗"),
+  warn: chalk.yellow("⚠"),
+  success: chalk.green("✓"),
+  info: chalk.blue("→"),
+  debug: chalk.gray("·"),
+};
 
 /**
  * @param {{ level?: "info"|"debug", longformat?: boolean }} [options]
@@ -28,17 +34,22 @@ const levelize = winston.format((info) => {
 export function createLogger(options = {}) {
   const { level = "info", longformat = false } = options;
   const resolved = level === "info" ? "info" : "debug";
+
+  const line = winston.format.printf(({ level, message, scope, timestamp }) => {
+    if (resolved !== "debug") {
+      return `${SYMBOL[level] ?? ""} ${message}`.trim();
+    }
+    const ts = timestamp ? chalk.gray(`${timestamp} `) : "";
+    const sc = scope ? `${chalk.cyan(`<${scope}>`)} ` : "";
+    return `${ts}${SYMBOL[level] ?? ""} ${sc}${message}`;
+  });
+
   return winston.createLogger({
+    levels: LOG_LEVELS,
     level: resolved,
     format: winston.format.combine(
-      levelize(),
-      winston.format.colorize({ all: true }),
-      winston.format.timestamp({ format: longformat ? "YYYY-MM-DD HH:mm:ss" : "HH:mm:ss" }),
-      winston.format.printf(({ level, message, timestamp, scope }) => {
-        const ts = chalk.white.dim(timestamp);
-        const sc = scope ? `:${chalk.cyan.bold(`<${scope}>`)}` : "";
-        return `${ts}:${level}${sc}:${message}\r`;
-      }),
+      winston.format.timestamp({ format: "HH:mm:ss" }),
+      line,
     ),
     transports: [new winston.transports.Console({ level: resolved })],
   });
@@ -46,8 +57,16 @@ export function createLogger(options = {}) {
 
 /**
  * Null logger for library/test use — swallows all output.
+ * Implements the same level set (including `success`).
  */
 export function createNullLogger() {
   const noop = () => {};
-  return { info: noop, debug: noop, warn: noop, error: noop, level: "info" };
+  return Object.freeze({
+    level: "info",
+    error: noop,
+    warn: noop,
+    success: noop,
+    info: noop,
+    debug: noop,
+  });
 }

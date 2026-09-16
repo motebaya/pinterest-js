@@ -106,7 +106,7 @@ async function downloadOne({ media, pin, username, opts, log }) {
   const finalPath = path.join(dir, name);
   if (fs.existsSync(finalPath) && !opts.overwrite) {
     log?.debug?.(`HLS output exists, skipping: ${name}`, { scope: "Pipeline" });
-    return { status: true, file: finalPath, bytes: 0, skipped: true };
+    return { status: true, file: finalPath, bytes: fs.statSync(finalPath).size, skipped: true };
   }
   return convertHlsToMp4({ hlsUrl: media.url, outputPath: finalPath, log });
 }
@@ -128,11 +128,11 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
   let pins;
 
   if (mode === "feed") {
-    log?.info?.(`extracting user feed for @${chalk.blue(username)} (max ${opts.maxPages} pages)`, { scope: "Pipeline" });
+    log?.info?.(`resolving feed for @${chalk.blue(username)} (max ${opts.maxPages} pages)`, { scope: "Pipeline" });
     const result = await pinterest.extractPins({ username, maxPages: opts.maxPages });
     author = result.author;
     pins = result.pins;
-    log?.info?.(`extracted ${pins.length} pins across ${result.pages} page(s)`, { scope: "Pipeline" });
+    log?.success?.(`found ${pins.length} pins across ${result.pages} page(s)`, { scope: "Pipeline" });
   } else {
     // board mode: discover boards, let the caller pick
     const boardsResult = await pinterest.extractBoards({ username, maxPages: opts.maxPages });
@@ -245,11 +245,12 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
   }
 
   let downloaded = 0;
+  let skipped = 0;
   let failed = 0;
   const start = Date.now();
   for (const [index, item] of plan.entries()) {
     log?.info?.(
-      `[${index + 1}/${plan.length}] ${item.media.kind} pin ${chalk.white(item.pin.id)} ${chalk.dim(item.pin.title.slice(0, 60))}`,
+      `[${index + 1}/${plan.length}] ${item.media.kind} ${chalk.white(item.pin.id)} ${chalk.dim(item.pin.title.slice(0, 60))}`,
       { scope: "Pipeline" },
     );
     if (opts.metadata) {
@@ -263,19 +264,26 @@ export async function runUserPipeline({ username, mode, boardSelection, sectionS
       });
     }
     try {
-      await downloadOne({ media: item.media, pin: item.pin, username: author.username, opts, log });
-      downloaded += 1;
+      const result = await downloadOne({ media: item.media, pin: item.pin, username: author.username, opts, log });
+      if (result?.skipped) {
+        skipped += 1;
+        log?.warn?.(`already exists, skipped: ${chalk.white(path.basename(result.file))}`, { scope: "Pipeline" });
+      } else {
+        downloaded += 1;
+      }
     } catch (err) {
       failed += 1;
       log?.error?.(`pin ${item.pin.id}: ${err.message}`, { scope: "Pipeline" });
     }
   }
 
-  log?.info?.(
-    `done: ${downloaded} downloaded, ${failed} failed in ${((Date.now() - start) / 1000).toFixed(1)}s`,
-    { scope: "Pipeline" },
-  );
-  return { downloaded, failed };
+  showSummary("Download complete", [
+    ["Downloaded", downloaded],
+    ["Skipped", skipped],
+    ["Failed", failed],
+    ["Time", `${((Date.now() - start) / 1000).toFixed(1)}s`],
+  ]);
+  return { downloaded, failed, skipped };
 }
 
 /**
@@ -294,7 +302,7 @@ export async function runPinPipeline({ pinInput }, opts) {
     if (cached?.pin?.media) {
       const media = cached.pin.media.find((m) => m.kind === type) ?? cached.pin.media[0];
       const result = await downloadOne({ media, pin: cached.pin, username: cached.author?.username ?? "unknown", opts, log });
-      return { downloaded: result.skipped ? 0 : 1, failed: 0 };
+      return { downloaded: result.skipped ? 0 : 1, failed: 0, skipped: result.skipped ? 1 : 0 };
     }
     log?.warn?.(`no cached metadata for pin ${opts.cache} — fetching live`, { scope: "Pipeline" });
   }
@@ -325,7 +333,7 @@ export async function runPinPipeline({ pinInput }, opts) {
   }
 
   const result = await downloadOne({ media, pin, username: pin.author.username || "unknown", opts, log });
-  return { downloaded: result.skipped ? 0 : 1, failed: 0 };
+  return { downloaded: result.skipped ? 0 : 1, failed: 0, skipped: result.skipped ? 1 : 0 };
 }
 
 /**
@@ -347,17 +355,28 @@ export async function runCachedUserPipeline({ username }, opts) {
   if (plan.length === 0) return { downloaded: 0, failed: 0 };
 
   let downloaded = 0;
+  let skipped = 0;
   let failed = 0;
   for (const item of plan) {
     try {
-      await downloadOne({ media: item.media, pin: item.pin, username: author.username, opts, log });
-      downloaded += 1;
+      const result = await downloadOne({ media: item.media, pin: item.pin, username: author.username, opts, log });
+      if (result?.skipped) {
+        skipped += 1;
+        log?.warn?.(`already exists, skipped: ${chalk.white(path.basename(result.file))}`, { scope: "Pipeline" });
+      } else {
+        downloaded += 1;
+      }
     } catch (err) {
       failed += 1;
       log?.error?.(`pin ${item.pin.id}: ${err.message}`, { scope: "Pipeline" });
     }
   }
-  return { downloaded, failed };
+  showSummary("Download complete", [
+    ["Downloaded", downloaded],
+    ["Skipped", skipped],
+    ["Failed", failed],
+  ]);
+  return { downloaded, failed, skipped };
 }
 
 // re-export for CLI use

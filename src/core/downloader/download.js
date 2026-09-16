@@ -98,6 +98,7 @@ export async function downloadMedia({
       return { status: true, file: finalPath, bytes: stat.size, mediaType: "", skipped: true };
     }
   }
+  // overwrite of an existing valid file is a deliberate user action — say so
 
   removeFile(tmpPath);
 
@@ -217,7 +218,7 @@ async function attemptOnce({ url, expect, tmpPath, finalPath, log, showProgress,
           expect,
         });
         atomicMove(tmpPath, finalPath);
-        log?.info?.(`saved ${chalk.white(path.basename(finalPath))} (${humanSize(bytes)}) as ${mediaType}`, {
+        log?.success?.(`saved ${chalk.white(path.basename(finalPath))} (${humanSize(bytes)}) as ${mediaType}`, {
           scope: "Download",
         });
         finish();

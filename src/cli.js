@@ -130,6 +130,17 @@ const args = parser.parse_args();
 const log = createLogger({ level: args.verbose ? "debug" : "info" });
 
 /**
+ * One-line result summary including skip counts.
+ * @param {{ downloaded: number, failed: number, skipped?: number }} result
+ */
+function logResult(result) {
+  const parts = [`${result.downloaded} downloaded`];
+  if (result.skipped) parts.push(`${result.skipped} skipped`);
+  parts.push(`${result.failed} failed`);
+  log.success(`done: ${parts.join(", ")}`);
+}
+
+/**
  * Map AppError codes to process exit codes.
  */
 function exitCodeFor(err) {
@@ -176,7 +187,7 @@ async function main() {
       return 2;
     }
     const result = await runPinPipeline({ pinInput: args.pin }, opts);
-    log.info(`finished: ${result.downloaded} downloaded, ${result.failed} failed`);
+    logResult(result);
     return result.failed > 0 ? 1 : 0;
   }
 
@@ -186,7 +197,7 @@ async function main() {
     const result = isPinId
       ? await runPinPipeline({ pinInput: args.cache }, opts)
       : await runCachedUserPipeline({ username: args.cache }, opts);
-    log.info(`finished: ${result.downloaded} downloaded, ${result.failed} failed`);
+    logResult(result);
     return result.failed > 0 ? 1 : 0;
   }
 
@@ -210,7 +221,7 @@ async function main() {
     },
     opts,
   );
-  log.info(`finished: ${result.downloaded} downloaded, ${result.failed} failed`);
+  logResult(result);
   return result.failed > 0 ? 1 : 0;
 }
 
