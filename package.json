@@ -1,19 +1,36 @@
 {
   "name": "pinterest-js",
-  "version": "2.0.0",
-  "description": "easy peasy download bulk pinterest media from based username or pinId",
-  "main": "src/main.js",
+  "version": "2.1.0",
+  "description": "Download Pinterest media (images, videos, carousels) by pin URL or username feed/boards",
+  "main": "src/cli.js",
   "bin": {
     "pinterest-js": "src/cli.js"
   },
   "scripts": {
-    "cli": "node src/cli.js"
+    "cli": "node src/cli.js",
+    "test": "node --test \"test/unit/*.test.js\" \"test/integration/*.test.js\"",
+    "test:live": "node test/live/probe.mjs",
+    "prepack": "node -e \"console.log('reminder: run npm test before publishing')\""
   },
-  "keywords": [],
+  "keywords": [
+    "pinterest",
+    "downloader",
+    "media",
+    "images",
+    "videos",
+    "hls"
+  ],
   "author": "motebaya",
   "homepage": "https://github.com/motebaya/pinterest-js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/motebaya/pinterest-js.git"
+  },
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "argparse": "^2.0.1",
     "axios": "^1.9.0",
@@ -25,5 +42,10 @@
     "hls-parser": "^0.16.0",
     "inquirer": "^13.2.4",
     "winston": "^3.17.0"
-  }
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ]
 }

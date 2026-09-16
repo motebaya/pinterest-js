@@ -1,6 +1,38 @@
+# --- dependencies ---
 node_modules/
+
+# --- generated downloader output (user data, never tracked) ---
 pinterest-downloader-output/
-trash/
-*.txt
-*.html
-*.m3u8
+
+# --- download temp files (downloader writes <final>.part / HLS .part.mp4) ---
+*.part
+*.part.mp4
+
+# --- logs / local runtime state ---
+logs/
+*.log
+npm-debug.log*
+
+# --- environment / credentials ---
+.env
+.env.*
+*.pem
+
+# --- editor / OS junk ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- test tooling ---
+coverage/
+
+# --- raw media captures from probes (large; keep out of git) ---
+artifacts/research/probes/tmp-probe/*.mp4
+
+# NOTE:
+# test/fixtures/ is intentionally NOT ignored — committed test fixtures are
+# part of the test suite. *.html/*.m3u8/*.json there are deliberately tracked.
+# The old blanket *.txt/*.html/*.m3u8 ignores were removed: they silently
+# swallowed legitimate files (probe captures needed explicit moves, and
+# documentation in artifacts/ would have been hidden).
