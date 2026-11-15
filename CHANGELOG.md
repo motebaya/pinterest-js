@@ -9,8 +9,6 @@ changes to the CLI or the on-disk layout. `package.json` holds the
 authoritative version; dates below are when each version was set in the
 repository, not npm release dates (the package is not published to npm).
 
-## [Unreleased]
-
 ### Security
 
 - Updated the transitive `follow-redirects` package (pulled in by `axios`) to
@@ -19,9 +17,6 @@ repository, not npm release dates (the package is not published to npm).
 
 ### Changed
 
-- Public documentation no longer points at internal development material
-  (`audits/`, `reports/`, `artifacts/`, `trash/`), which is now excluded from
-  the repository and kept local only.
 - Added this changelog and a documented versioning policy.
 
 No functional changes.
