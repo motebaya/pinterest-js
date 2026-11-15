@@ -1,10 +1,17 @@
+<div align="center">
+
 # pinterest-js
+
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen?logo=githubactions&logoColor=white)](#testing--development)
+[![ffmpeg](https://img.shields.io/badge/ffmpeg-bundled-007808?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
+[![Pinterest](https://img.shields.io/badge/platform-Pinterest-BD081C?logo=pinterest&logoColor=white)](https://www.pinterest.com/)
 
 Download Pinterest media — single pins (images, videos, carousels) or a user's
 feed/boards — from the command line.
 
-Built around a resource-registry extraction layer, a hardened downloader
-(validated, atomic writes), and HLS→MP4 conversion via a bundled ffmpeg.
+</div>
 
 ## Requirements
 
@@ -208,14 +215,6 @@ spin up local HTTP servers and a locally generated HLS tree (via the bundled
 ffmpeg) — they make **no network requests**. Live probes are separate by
 design.
 
-## Versioning
-
-`package.json` is the single source of truth for the version and follows
-[Semantic Versioning](https://semver.org/): patch for fixes, minor for
-backwards-compatible additions, major for breaking CLI or on-disk changes.
-Notable changes are recorded in [CHANGELOG.md](CHANGELOG.md). No git tags or
-npm releases exist yet — the project is distributed as a clone.
-
 ## Troubleshooting
 
 - **"PinNotFound"** — the pin is deleted/invalid; verify the URL in a browser.
@@ -243,18 +242,6 @@ npm releases exist yet — the project is distributed as a clone.
 - Metadata is a snapshot: cached re-downloads (`-c`) rely on stored URLs,
   which Pinterest may expire.
 
-## Project layout
-
-```text
-src/            active implementation (CLI → services → core → config/util)
-test/           node:test suite (unit, integration, fixtures, live probe)
-CHANGELOG.md    notable changes per version
-```
-
-Internal working material — `audits/`, `reports/`, `artifacts/` and `trash/`
-— is kept on disk for local reference only and is excluded from the
-repository; see [.gitignore](.gitignore).
-
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT [LICENSE](LICENSE).
