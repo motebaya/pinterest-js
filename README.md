@@ -36,25 +36,25 @@ node src/cli.js -u <username> --board         interactive board/section selectio
 node src/cli.js -c <username|pinId>           re-download from cached metadata
 ```
 
-| Flag | Description |
-| --- | --- |
-| `-p, --pin <url\|id>` | Single pin: full URL, bare id, or `pin.it` link |
-| `-u, --username <name>` | Pinterest username (with or without `@`) |
-| `-t, --type <image\|video>` | Media type to download (default: `image`) |
-| `-f, --feed` | With `-u`: download the user's created-pins feed |
-| `-b, --board` | With `-u`: pick boards/sections interactively |
-| `-n, --pages <n>` | Max pages to fetch per resource (default 100; ~25 pins/page) |
-| `-c, --cache <username\|pinId>` | Re-download from previously saved metadata |
-| `-d, --output-dir <dir>` | Output root for downloads and metadata (overrides `PINTEREST_JS_OUTPUT_DIR`) |
-| `-m, --metadata` | Save pin/user metadata JSON next to downloads |
-| `-o, --overwrite` | Re-download even if files exist (default: skip) |
-| `-y, --yes` | Skip the download confirmation prompt |
-| `-V, --verbose` | Debug output (timestamps, scopes, HTTP log) |
+| Flag                            | Description                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| `-p, --pin <url\|id>`           | Single pin: full URL, bare id, or `pin.it` link                              |
+| `-u, --username <name>`         | Pinterest username (with or without `@`)                                     |
+| `-t, --type <image\|video>`     | Media type to download (default: `image`)                                    |
+| `-f, --feed`                    | With `-u`: download the user's created-pins feed                             |
+| `-b, --board`                   | With `-u`: pick boards/sections interactively                                |
+| `-n, --pages <n>`               | Max pages to fetch per resource (default 100; ~25 pins/page)                 |
+| `-c, --cache <username\|pinId>` | Re-download from previously saved metadata                                   |
+| `-d, --output-dir <dir>`        | Output root for downloads and metadata (overrides `PINTEREST_JS_OUTPUT_DIR`) |
+| `-m, --metadata`                | Save pin/user metadata JSON next to downloads                                |
+| `-o, --overwrite`               | Re-download even if files exist (default: skip)                              |
+| `-y, --yes`                     | Skip the download confirmation prompt                                        |
+| `-V, --verbose`                 | Debug output (timestamps, scopes, HTTP log)                                  |
 
 ### Examples
 
-All of these are real acceptance commands; see
-`reports/public-release-audit.md` for verification results.
+All of these are real commands that were run against live Pinterest
+responses while the current version was verified.
 
 ```bash
 # single image pin
@@ -114,7 +114,9 @@ runs never issue unbounded requests.
 `-m/--metadata` writes JSON next to the downloads:
 
 - `@<user>/<userId>.json` — user-level snapshot (feed/board runs): author +
-  every pin with its media URLs. This file is what `-c <username>` loads.
+  every pin with its media URLs. The file is named after Pinterest's numeric
+  user id, or after the username when no id is available. This file is what
+  `-c <username>` loads.
 - `@<user>/<images|videos>/metadata/<pinId>.json` — per-pin snapshot; this is
   what `-c <pinId>` loads.
 
@@ -155,8 +157,10 @@ first.
   HTML error pages and truncated responses never masquerade as media.
 - Writes are atomic (`rename`); an interrupted download leaves no partial file
   at the final path and never clobbers an existing valid file.
-- Transient failures (timeouts, 429/5xx, socket resets) retry up to 3 times
-  with backoff; permanent failures (404/403) fail fast.
+- Transient failures (timeouts, 429/5xx, socket resets, DNS hiccups) are
+  retried — up to 3 attempts per media file with exponential backoff (1s, 2s);
+  permanent failures (404/403) fail fast. Page/resource fetches are not
+  retried: a failed extraction surfaces as an error for that run.
 - HLS output is validated (size + MP4 box signature) before it is renamed.
 
 ## Terminal output
@@ -185,12 +189,12 @@ logging for diagnosis.
 
 ## Exit codes
 
-| Code  | Meaning |
-| ----- | ------- |
-| `0`   | Success (including runs where everything was skipped) |
+| Code  | Meaning                                                         |
+| ----- | --------------------------------------------------------------- |
+| `0`   | Success (including runs where everything was skipped)           |
 | `1`   | Runtime error (network, not found, download/validation, ffmpeg) |
-| `2`   | Usage error (invalid username/pin input, missing action flag) |
-| `130` | Aborted by user (Ctrl+C at a prompt) |
+| `2`   | Usage error (invalid username/pin input, missing action flag)   |
+| `130` | Aborted by user (Ctrl+C at a prompt)                            |
 
 ## Testing / development
 
@@ -202,15 +206,22 @@ npm run test:live   # manual live probe of the acceptance pins
 The suite uses Node's built-in test runner (`node:test`). Integration tests
 spin up local HTTP servers and a locally generated HLS tree (via the bundled
 ffmpeg) — they make **no network requests**. Live probes are separate by
-design; see `reports/04-testing-qa.md` for framework rationale and
-`reports/public-release-audit.md` for the latest live acceptance results.
+design.
+
+## Versioning
+
+`package.json` is the single source of truth for the version and follows
+[Semantic Versioning](https://semver.org/): patch for fixes, minor for
+backwards-compatible additions, major for breaking CLI or on-disk changes.
+Notable changes are recorded in [CHANGELOG.md](CHANGELOG.md). No git tags or
+npm releases exist yet — the project is distributed as a clone.
 
 ## Troubleshooting
 
 - **"PinNotFound"** — the pin is deleted/invalid; verify the URL in a browser.
 - **`E_APP_VERSION`** — Pinterest's profile page structure changed or is
-  unreachable from your network; retry, or check `reports/` for the current
-  extraction contract.
+  unreachable from your network; retry once, then assume the page contract
+  changed upstream.
 - **403 on media** — the CDN URL was stale (Pinterest expires old objects);
   re-extract instead of reusing saved URLs from old metadata.
 - **ffmpeg errors** — ensure `ffmpeg-static` installed for your platform
@@ -226,8 +237,9 @@ design; see `reports/04-testing-qa.md` for framework rationale and
 - `pin.it` short links resolve via redirect parsing; expired tokens surface a
   clear error (valid-token resolution verified only against the redirect
   path).
-- Rate limits unknown by design: the tool paces sequentially and caps pages;
-  don't run large batches aggressively.
+- Rate limits are unknown: requests are issued one at a time (no artificial
+  delay) and page counts are capped, but large batches should still be run
+  conservatively.
 - Metadata is a snapshot: cached re-downloads (`-c`) rely on stored URLs,
   which Pinterest may expire.
 
@@ -236,10 +248,12 @@ design; see `reports/04-testing-qa.md` for framework rationale and
 ```text
 src/            active implementation (CLI → services → core → config/util)
 test/           node:test suite (unit, integration, fixtures, live probe)
-reports/        reconstruction/QA documentation with real verification data
-artifacts/      preserved history: Gen-1 code, captures, research probes
-audits/         pre-reconstruction audit documents (historical)
+CHANGELOG.md    notable changes per version
 ```
+
+Internal working material — `audits/`, `reports/`, `artifacts/` and `trash/`
+— is kept on disk for local reference only and is excluded from the
+repository; see [.gitignore](.gitignore).
 
 ## License
 
