@@ -11,6 +11,12 @@ repository, not npm release dates (the package is not published to npm).
 
 ## [Unreleased]
 
+### Security
+
+- Updated the transitive `follow-redirects` package (pulled in by `axios`) to
+  1.16.3, clearing three high-severity redirect-header advisories. No API or
+  behaviour change.
+
 ### Changed
 
 - Public documentation no longer points at internal development material
