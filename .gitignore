@@ -1,8 +1,44 @@
+# --- dependencies ---
+node_modules/
+
+# --- generated downloader output (user data, never tracked) ---
+pinterest-downloader-output/
+
+# --- download temp files (downloader writes <final>.part / HLS .part.mp4) ---
+*.part
+*.part.mp4
+
+# --- logs / local runtime state ---
+logs/
+*.log
+npm-debug.log*
+
+# --- environment / credentials ---
+.env
+.env.*
+*.pem
+
+# --- editor / OS junk ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- test tooling ---
+coverage/
+
+# --- internal development material (never part of the public package) ---
+# Audit trails, discovery/reconstruction reports, historical captures and
+# scratch work live on disk for local reference only. They are excluded from
+# the repository so the public tree contains only the shipped implementation,
+# its tests and its user documentation.
+artifacts/*
+audits/*
+reports/*
 trash/*
-pinterest-downloader-output/*
-node_modules/*
-*.html
-*.json
-*.txt
-*.m3u8
-test*
+
+# NOTE:
+# test/fixtures/ is intentionally NOT ignored — committed test fixtures are
+# part of the test suite. *.html/*.m3u8/*.json there are deliberately tracked.
+# The old blanket *.txt/*.html/*.m3u8 ignores were removed: they silently
+# swallowed legitimate files.
